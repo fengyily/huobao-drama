@@ -26,4 +26,5 @@ ENV NODE_ENV=production
 ENV PORT=5679
 EXPOSE 5679
 
-CMD ["tsx", "backend/src/index.ts"]
+WORKDIR /app/backend
+CMD ["tsx", "src/index.ts"]
