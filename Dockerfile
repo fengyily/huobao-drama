@@ -1,4 +1,4 @@
-FROM node:18-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -6,7 +6,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run generate
 
-FROM node:18-alpine
+FROM node:22-alpine
 
 RUN apk add --no-cache ffmpeg
 
