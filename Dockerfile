@@ -6,24 +6,16 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run generate
 
-FROM node:22-alpine AS backend-builder
-
-WORKDIR /build/backend
-COPY backend/package.json backend/package-lock.json* ./
-RUN npm ci
-COPY backend/ ./
-RUN npx tsc
-
 FROM node:22-alpine
 
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg && npm install -g tsx
 
 WORKDIR /app
 
 COPY backend/package.json backend/package-lock.json* ./backend/
 RUN cd backend && npm ci --omit=dev && npm cache clean --force
 
-COPY --from=backend-builder /build/backend/dist ./backend/dist
+COPY backend/src ./backend/src
 COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
 COPY skills/ ./skills/
 COPY configs/config.example.yaml ./configs/config.example.yaml
@@ -34,4 +26,4 @@ ENV NODE_ENV=production
 ENV PORT=5679
 EXPOSE 5679
 
-CMD ["node", "backend/dist/index.js"]
+CMD ["tsx", "backend/src/index.ts"]
