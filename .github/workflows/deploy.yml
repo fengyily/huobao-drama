@@ -41,6 +41,13 @@ jobs:
           docker push ${{ steps.image.outputs.name }}:latest
           docker push ${{ steps.image.outputs.name }}:${{ github.sha }}
 
+      - name: Mirror nginx image to ACR
+        run: |
+          ACR_NGINX="${{ steps.image.outputs.registry }}/${{ steps.config.outputs.acr_namespace }}/nginx:alpine"
+          docker pull nginx:alpine
+          docker tag nginx:alpine ${ACR_NGINX}
+          docker push ${ACR_NGINX}
+
       - name: Generate nginx config
         run: |
           sed 's/__DOMAIN__/${{ steps.config.outputs.domain }}/g' \
@@ -102,8 +109,10 @@ jobs:
             $SCP_CMD configs/config.example.yaml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/configs/config.yaml
           fi
 
-          # Generate docker-compose with actual image name and copy to server
-          sed "s|image: .*huobao-drama:latest|image: ${IMAGE_NAME}:latest|" \
+          # Generate docker-compose with actual image names and copy to server
+          sed -e "s|image: .*huobao-drama:latest|image: ${IMAGE_NAME}:latest|" \
+              -e "s|__ACR_REGISTRY__|${ACR_REGISTRY}|g" \
+              -e "s|__ACR_NAMESPACE__|${{ steps.config.outputs.acr_namespace }}|g" \
             docker-compose.prod.yml > docker-compose.deploy.yml
           $SCP_CMD docker-compose.deploy.yml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/docker-compose.prod.yml
           $SCP_CMD deploy/nginx.prod.conf ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/deploy/nginx.conf

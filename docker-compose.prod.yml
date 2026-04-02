@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: registry.cn-hangzhou.aliyuncs.com/library/nginx:alpine
+    image: __ACR_REGISTRY__/__ACR_NAMESPACE__/nginx:alpine
     ports:
       - "80:80"
       - "443:443"
