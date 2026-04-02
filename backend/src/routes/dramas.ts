@@ -52,7 +52,7 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const body = await c.req.json()
   const ts = now()
-  const res = db.insert(schema.dramas).values({
+  const [result] = await db.insert(schema.dramas).values({
     title: body.title,
     description: body.description,
     genre: body.genre,
@@ -62,22 +62,19 @@ app.post('/', async (c) => {
     status: 'draft',
     createdAt: ts,
     updatedAt: ts,
-  }).run()
-
-  const [result] = db.select().from(schema.dramas)
-    .where(eq(schema.dramas.id, Number(res.lastInsertRowid))).all()
+  }).returning()
 
   // Create default episodes
   const totalEpisodes = body.total_episodes || 1
   for (let i = 1; i <= totalEpisodes; i++) {
-    db.insert(schema.episodes).values({
+    await db.insert(schema.episodes).values({
       dramaId: result.id,
       episodeNumber: i,
       title: `第${i}集`,
       status: 'draft',
       createdAt: ts,
       updatedAt: ts,
-    }).run()
+    })
   }
 
   return created(c, toSnakeCase(result))
@@ -86,7 +83,7 @@ app.post('/', async (c) => {
 
 // GET /dramas/stats — must be before /:id
 app.get('/stats', async (c) => {
-  const all = db.select().from(schema.dramas).where(isNull(schema.dramas.deletedAt)).all()
+  const all = await db.select().from(schema.dramas).where(isNull(schema.dramas.deletedAt))
   const byStatus = Object.entries(
     all.reduce((acc, d) => {
       acc[d.status || 'draft'] = (acc[d.status || 'draft'] || 0) + 1
@@ -133,7 +130,7 @@ app.put('/:id', async (c) => {
   if (body.status !== undefined) updates.status = body.status
   if (body.tags !== undefined) updates.tags = JSON.stringify(body.tags)
   if (body.metadata !== undefined) updates.metadata = body.metadata
-  db.update(schema.dramas).set(updates).where(eq(schema.dramas.id, id)).run()
+  await db.update(schema.dramas).set(updates).where(eq(schema.dramas.id, id))
   return success(c)
 })
 

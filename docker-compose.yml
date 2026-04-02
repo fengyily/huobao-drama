@@ -1,0 +1,38 @@
+services:
+  app:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./configs/config.yaml:/app/configs/config.yaml
+    ports:
+      - "5679:5679"
+    environment:
+      - PORT=5679
+      # 默认使用 SQLite，如需 PostgreSQL 取消下面注释并启用 postgres 服务
+      - DB_TYPE=postgres
+      - DATABASE_URL=postgresql://huobao:huobao@postgres:5432/huobao_drama
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+#  PostgreSQL 服务（取消注释以启用）
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: huobao_drama
+      POSTGRES_USER: huobao
+      POSTGRES_PASSWORD: huobao
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U huobao -d huobao_drama"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
