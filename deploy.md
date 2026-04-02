@@ -50,10 +50,10 @@
 | Secret 名称 | 说明 |
 |-------------|------|
 | `SSH_KEY` | 服务器 SSH 私钥（完整内容，包含 BEGIN/END 行） |
-| `ALI_ACCESS_KEY_ID` | 阿里云 RAM 用户 AccessKey ID |
-| `ALI_ACCESS_KEY_SECRET` | 阿里云 RAM 用户 AccessKey Secret |
-
-> AccessKey 同时用于 ACR 镜像推送/拉取和 DNS 证书验证，无需额外凭证。
+| `ALI_ACCESS_KEY_ID` | 阿里云 AccessKey ID（用于 DNS 证书验证） |
+| `ALI_ACCESS_KEY_SECRET` | 阿里云 AccessKey Secret（用于 DNS 证书验证） |
+| `ACR_USERNAME` | 阿里云 ACR 登录用户名（控制台右上角的账号名） |
+| `ACR_PASSWORD` | 阿里云 ACR 固定密码（在 ACR 控制台 → 访问凭证中设置） |
 
 ## 阿里云配置
 

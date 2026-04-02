@@ -33,7 +33,7 @@ jobs:
 
       - name: Login to Alibaba Cloud ACR
         run: |
-          docker login -u '${{ secrets.ALI_ACCESS_KEY_ID }}' -p '${{ secrets.ALI_ACCESS_KEY_SECRET }}' ${{ steps.image.outputs.registry }}
+          docker login -u '${{ secrets.ACR_USERNAME }}' -p '${{ secrets.ACR_PASSWORD }}' ${{ steps.image.outputs.registry }}
 
       - name: Build and push Docker image
         run: |
@@ -110,7 +110,7 @@ jobs:
 
           # Login to ACR, pull image and restart services
           $SSH_CMD "cd ${DEPLOY_PATH} && \
-            sudo docker login -u '${{ secrets.ALI_ACCESS_KEY_ID }}' -p '${{ secrets.ALI_ACCESS_KEY_SECRET }}' ${ACR_REGISTRY} && \
+            sudo docker login -u '${{ secrets.ACR_USERNAME }}' -p '${{ secrets.ACR_PASSWORD }}' ${ACR_REGISTRY} && \
             sudo docker compose -f docker-compose.prod.yml pull && \
             sudo docker compose -f docker-compose.prod.yml up -d && \
             sudo docker image prune -f"
