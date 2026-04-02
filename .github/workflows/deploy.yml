@@ -41,12 +41,17 @@ jobs:
           docker push ${{ steps.image.outputs.name }}:latest
           docker push ${{ steps.image.outputs.name }}:${{ github.sha }}
 
-      - name: Mirror nginx image to ACR
+      - name: Mirror base images to ACR
         run: |
-          ACR_NGINX="${{ steps.image.outputs.registry }}/${{ steps.config.outputs.acr_namespace }}/nginx:alpine"
+          ACR_NS="${{ steps.image.outputs.registry }}/${{ steps.config.outputs.acr_namespace }}"
+
           docker pull nginx:alpine
-          docker tag nginx:alpine ${ACR_NGINX}
-          docker push ${ACR_NGINX}
+          docker tag nginx:alpine ${ACR_NS}/nginx:alpine
+          docker push ${ACR_NS}/nginx:alpine
+
+          docker pull postgres:16-alpine
+          docker tag postgres:16-alpine ${ACR_NS}/postgres:16-alpine
+          docker push ${ACR_NS}/postgres:16-alpine
 
       - name: Generate nginx config
         run: |

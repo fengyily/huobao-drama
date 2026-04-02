@@ -7,28 +7,28 @@ services:
     environment:
       - PORT=5679
       # 默认使用 SQLite，如需 PostgreSQL 取消下面注释并启用 postgres 服务
-      # - DB_TYPE=postgres
-      # - DATABASE_URL=postgresql://huobao:huobao@postgres:5432/huobao_drama
-    # depends_on:
-    #   postgres:
-    #     condition: service_healthy
+      - DB_TYPE=postgres
+      - DATABASE_URL=postgresql://huobao:huobao@postgres:5432/huobao_drama
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # PostgreSQL 服务（取消注释以启用）
-  # postgres:
-  #   image: __ACR_REGISTRY__/__ACR_NAMESPACE__/postgres:16-alpine
-  #   environment:
-  #     POSTGRES_DB: huobao_drama
-  #     POSTGRES_USER: huobao
-  #     POSTGRES_PASSWORD: huobao
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U huobao -d huobao_drama"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-  #   restart: unless-stopped
+  postgres:
+    image: __ACR_REGISTRY__/__ACR_NAMESPACE__/postgres:16-alpine
+    environment:
+      POSTGRES_DB: huobao_drama
+      POSTGRES_USER: huobao
+      POSTGRES_PASSWORD: huobao
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U huobao -d huobao_drama"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   nginx:
     image: __ACR_REGISTRY__/__ACR_NAMESPACE__/nginx:alpine
@@ -42,5 +42,5 @@ services:
       - app
     restart: unless-stopped
 
-# volumes:
-#   pgdata:
+volumes:
+  pgdata:
