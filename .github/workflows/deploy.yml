@@ -78,7 +78,7 @@ jobs:
               ~/.acme.sh/acme.sh --install-cert -d ${DOMAIN} \
                 --key-file ${DEPLOY_PATH}/ssl/privkey.pem \
                 --fullchain-file ${DEPLOY_PATH}/ssl/fullchain.pem \
-                --reloadcmd 'cd ${DEPLOY_PATH} && sudo docker compose -f docker-compose.prod.yml restart nginx'
+                --reloadcmd 'cd ${DEPLOY_PATH} && sudo docker compose -f docker-compose.prod.yml restart nginx' || true
             fi
           "
 
