@@ -69,9 +69,8 @@ jobs:
           ALI_SECRET: ${{ secrets.ALI_ACCESS_KEY_SECRET }}
         run: |
           SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
-          SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
 
-          $SSH_CMD "mkdir -p ${DEPLOY_PATH}/ssl"
+          $SSH_CMD "sudo mkdir -p ${DEPLOY_PATH}/ssl && sudo chown -R \$(id -u):\$(id -g) ${DEPLOY_PATH}"
 
           # Install acme.sh if not present
           $SSH_CMD "test -f ~/.acme.sh/acme.sh || (curl -fsSL https://get.acme.sh | sh -s email=acme@${DOMAIN})"
@@ -85,7 +84,7 @@ jobs:
               ~/.acme.sh/acme.sh --install-cert -d ${DOMAIN} \
                 --key-file ${DEPLOY_PATH}/ssl/privkey.pem \
                 --fullchain-file ${DEPLOY_PATH}/ssl/fullchain.pem \
-                --reloadcmd 'cd ${DEPLOY_PATH} && docker compose -f docker-compose.prod.yml restart nginx'
+                --reloadcmd 'cd ${DEPLOY_PATH} && sudo docker compose -f docker-compose.prod.yml restart nginx'
             fi
           "
 
@@ -98,8 +97,8 @@ jobs:
           SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
           SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
 
-          # Create deploy directory and subdirectories
-          $SSH_CMD "mkdir -p ${DEPLOY_PATH}/deploy ${DEPLOY_PATH}/data/static ${DEPLOY_PATH}/configs"
+          # Create deploy directory and subdirectories (chown once at top level)
+          $SSH_CMD "sudo mkdir -p ${DEPLOY_PATH} && sudo chown -R \$(id -u):\$(id -g) ${DEPLOY_PATH} && mkdir -p ${DEPLOY_PATH}/deploy ${DEPLOY_PATH}/data/static ${DEPLOY_PATH}/configs"
 
           # Copy config.example.yaml if config.yaml doesn't exist yet
           HAS_CONFIG=$($SSH_CMD "test -f ${DEPLOY_PATH}/configs/config.yaml && echo yes || echo no")
@@ -113,7 +112,7 @@ jobs:
 
           # Pull image and restart services
           $SSH_CMD "cd ${DEPLOY_PATH} && \
-            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin && \
-            docker compose -f docker-compose.prod.yml pull && \
-            docker compose -f docker-compose.prod.yml up -d && \
-            docker image prune -f"
+            echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin && \
+            sudo docker compose -f docker-compose.prod.yml pull && \
+            sudo docker compose -f docker-compose.prod.yml up -d && \
+            sudo docker image prune -f"
