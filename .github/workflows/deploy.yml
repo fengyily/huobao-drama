@@ -91,9 +91,16 @@ jobs:
             | jq -r '.DomainRecords.Record[]? | select(.RR=="'"${RR}"'") | .RecordId' | head -1)
 
           if [ -n "$RECORD_ID" ] && [ "$RECORD_ID" != "null" ]; then
-            echo "Updating existing A record ${RR}.${BASE_DOMAIN} → ${SERVER_IP}"
-            ./aliyun alidns UpdateDomainRecord \
-              --RecordId "${RECORD_ID}" --RR "${RR}" --Type A --Value "${SERVER_IP}"
+            CURRENT_IP=$(./aliyun alidns DescribeDomainRecords \
+              --DomainName "${BASE_DOMAIN}" --RRKeyWord "${RR}" --TypeKeyWord A \
+              | jq -r '.DomainRecords.Record[]? | select(.RR=="'"${RR}"'") | .Value' | head -1)
+            if [ "$CURRENT_IP" = "$SERVER_IP" ]; then
+              echo "A record ${RR}.${BASE_DOMAIN} already points to ${SERVER_IP}, skipping"
+            else
+              echo "Updating A record ${RR}.${BASE_DOMAIN} → ${SERVER_IP}"
+              ./aliyun alidns UpdateDomainRecord \
+                --RecordId "${RECORD_ID}" --RR "${RR}" --Type A --Value "${SERVER_IP}"
+            fi
           else
             echo "Adding A record ${RR}.${BASE_DOMAIN} → ${SERVER_IP}"
             ./aliyun alidns AddDomainRecord \
