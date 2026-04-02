@@ -60,6 +60,46 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ steps.config.outputs.host }} >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Setup DNS A record
+        env:
+          DOMAIN: ${{ steps.config.outputs.domain }}
+          SERVER_IP: ${{ steps.config.outputs.host }}
+          ALI_KEY: ${{ secrets.ALI_ACCESS_KEY_ID }}
+          ALI_SECRET: ${{ secrets.ALI_ACCESS_KEY_SECRET }}
+        run: |
+          # Parse domain: ai.hixiu.com → base=hixiu.com, rr=ai
+          PARTS=(${DOMAIN//./ })
+          COUNT=${#PARTS[@]}
+          BASE_DOMAIN="${PARTS[$((COUNT-2))]}.${PARTS[$((COUNT-1))]}"
+          if [ "$COUNT" -gt 2 ]; then
+            RR=$(echo "$DOMAIN" | sed "s/\.${BASE_DOMAIN}$//")
+          else
+            RR="@"
+          fi
+
+          # Install aliyun CLI
+          curl -fsSL https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-amd64.tgz -o aliyun-cli.tgz
+          tar xzf aliyun-cli.tgz
+          chmod +x aliyun
+
+          ./aliyun configure set --profile default --mode AK \
+            --access-key-id "${ALI_KEY}" --access-key-secret "${ALI_SECRET}" --region cn-hangzhou
+
+          # Check if A record already exists
+          RECORD_ID=$(./aliyun alidns DescribeDomainRecords \
+            --DomainName "${BASE_DOMAIN}" --RRKeyWord "${RR}" --TypeKeyWord A \
+            | jq -r '.DomainRecords.Record[]? | select(.RR=="'"${RR}"'") | .RecordId' | head -1)
+
+          if [ -n "$RECORD_ID" ] && [ "$RECORD_ID" != "null" ]; then
+            echo "Updating existing A record ${RR}.${BASE_DOMAIN} → ${SERVER_IP}"
+            ./aliyun alidns UpdateDomainRecord \
+              --RecordId "${RECORD_ID}" --RR "${RR}" --Type A --Value "${SERVER_IP}"
+          else
+            echo "Adding A record ${RR}.${BASE_DOMAIN} → ${SERVER_IP}"
+            ./aliyun alidns AddDomainRecord \
+              --DomainName "${BASE_DOMAIN}" --RR "${RR}" --Type A --Value "${SERVER_IP}"
+          fi
+
       - name: Issue SSL certificate
         env:
           SSH_HOST: ${{ steps.config.outputs.host }}
