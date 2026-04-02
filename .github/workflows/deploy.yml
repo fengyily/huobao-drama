@@ -32,26 +32,14 @@ jobs:
           echo "name=${IMAGE}" >> "$GITHUB_OUTPUT"
 
       - name: Login to Alibaba Cloud ACR
-        uses: aliyun/acr-login@v1
-        with:
-          login-server: "https://${{ steps.image.outputs.registry }}"
-          region-id: ${{ steps.config.outputs.acr_region }}
-          access-key-id: ${{ secrets.ALI_ACCESS_KEY_ID }}
-          access-key-secret: ${{ secrets.ALI_ACCESS_KEY_SECRET }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        run: |
+          docker login -u '${{ secrets.ALI_ACCESS_KEY_ID }}' -p '${{ secrets.ALI_ACCESS_KEY_SECRET }}' ${{ steps.image.outputs.registry }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ steps.image.outputs.name }}:latest
-            ${{ steps.image.outputs.name }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker build -t ${{ steps.image.outputs.name }}:latest -t ${{ steps.image.outputs.name }}:${{ github.sha }} .
+          docker push ${{ steps.image.outputs.name }}:latest
+          docker push ${{ steps.image.outputs.name }}:${{ github.sha }}
 
       - name: Generate nginx config
         run: |
