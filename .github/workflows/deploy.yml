@@ -4,15 +4,9 @@ on:
   push:
     branches: [release]
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: Checkout
@@ -25,13 +19,24 @@ jobs:
           echo "user=$(echo '${{ vars.CONFIG }}' | jq -r '.user')" >> "$GITHUB_OUTPUT"
           echo "domain=$(echo '${{ vars.CONFIG }}' | jq -r '.domain')" >> "$GITHUB_OUTPUT"
           echo "deploy_path=$(echo '${{ vars.CONFIG }}' | jq -r '.deploy_path')" >> "$GITHUB_OUTPUT"
+          echo "acr_region=$(echo '${{ vars.CONFIG }}' | jq -r '.acr_region')" >> "$GITHUB_OUTPUT"
+          echo "acr_namespace=$(echo '${{ vars.CONFIG }}' | jq -r '.acr_namespace')" >> "$GITHUB_OUTPUT"
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+      - name: Set image name
+        id: image
+        run: |
+          REGISTRY="registry.cn-${{ steps.config.outputs.acr_region }}.aliyuncs.com"
+          IMAGE="${REGISTRY}/${{ steps.config.outputs.acr_namespace }}/huobao-drama"
+          echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
+          echo "name=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Alibaba Cloud ACR
+        uses: aliyun/acr-login@v1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          login-server: "https://${{ steps.image.outputs.registry }}"
+          region-id: ${{ steps.config.outputs.acr_region }}
+          access-key-id: ${{ secrets.ALI_ACCESS_KEY_ID }}
+          access-key-secret: ${{ secrets.ALI_ACCESS_KEY_SECRET }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -42,8 +47,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:latest
-            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -93,11 +98,13 @@ jobs:
           SSH_HOST: ${{ steps.config.outputs.host }}
           SSH_USER: ${{ steps.config.outputs.user }}
           DEPLOY_PATH: ${{ steps.config.outputs.deploy_path }}
+          ACR_REGISTRY: ${{ steps.image.outputs.registry }}
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
         run: |
           SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
           SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
 
-          # Create deploy directory and subdirectories (chown once at top level)
+          # Create deploy directory and subdirectories
           $SSH_CMD "sudo mkdir -p ${DEPLOY_PATH} && sudo chown -R \$(id -u):\$(id -g) ${DEPLOY_PATH} && mkdir -p ${DEPLOY_PATH}/deploy ${DEPLOY_PATH}/data/static ${DEPLOY_PATH}/configs"
 
           # Copy config.example.yaml if config.yaml doesn't exist yet
@@ -106,13 +113,15 @@ jobs:
             $SCP_CMD configs/config.example.yaml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/configs/config.yaml
           fi
 
-          # Copy docker-compose and nginx config
-          $SCP_CMD docker-compose.prod.yml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/
+          # Generate docker-compose with actual image name and copy to server
+          sed "s|image: .*huobao-drama:latest|image: ${IMAGE_NAME}:latest|" \
+            docker-compose.prod.yml > docker-compose.deploy.yml
+          $SCP_CMD docker-compose.deploy.yml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/docker-compose.prod.yml
           $SCP_CMD deploy/nginx.prod.conf ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/deploy/nginx.conf
 
-          # Pull image and restart services
+          # Login to ACR, pull image and restart services
           $SSH_CMD "cd ${DEPLOY_PATH} && \
-            echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u ${{ github.actor }} --password-stdin && \
+            sudo docker login -u '${{ secrets.ALI_ACCESS_KEY_ID }}' -p '${{ secrets.ALI_ACCESS_KEY_SECRET }}' ${ACR_REGISTRY} && \
             sudo docker compose -f docker-compose.prod.yml pull && \
             sudo docker compose -f docker-compose.prod.yml up -d && \
             sudo docker image prune -f"

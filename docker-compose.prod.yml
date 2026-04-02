@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/fengyily/huobao-drama:latest
+    image: registry.cn-__ACR_REGION__.aliyuncs.com/__ACR_NAMESPACE__/huobao-drama:latest
     volumes:
       - ./data:/app/data
       - ./configs/config.yaml:/app/configs/config.yaml

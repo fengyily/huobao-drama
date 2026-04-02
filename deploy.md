@@ -10,6 +10,7 @@
 
 - **App 容器**：Node.js + FFmpeg，运行后端并托管前端静态文件
 - **Nginx 容器**：反向代理，处理 HTTPS 终止和 HTTP→HTTPS 跳转
+- **镜像仓库**：阿里云容器镜像服务（ACR），国内服务器拉取速度快
 - **SSL 证书**：通过 acme.sh 使用阿里云 DNS 验证自动申请 Let's Encrypt 证书
 
 ## GitHub 配置
@@ -25,9 +26,11 @@
 ```json
 {
   "host": "1.2.3.4",
-  "user": "root",
+  "user": "ubuntu",
   "domain": "drama.example.com",
-  "deploy_path": "/opt/huobao-drama"
+  "deploy_path": "/opt/huobao-drama",
+  "acr_region": "cn-hangzhou",
+  "acr_namespace": "your-namespace"
 }
 ```
 
@@ -37,6 +40,8 @@
 | `user` | SSH 登录用户名 |
 | `domain` | 绑定的域名 |
 | `deploy_path` | 服务器上的部署目录 |
+| `acr_region` | 阿里云 ACR 地域，如 `cn-hangzhou`、`cn-shanghai`、`cn-beijing` |
+| `acr_namespace` | ACR 命名空间名称 |
 
 ### 2. Repository Secrets
 
@@ -48,21 +53,25 @@
 | `ALI_ACCESS_KEY_ID` | 阿里云 RAM 用户 AccessKey ID |
 | `ALI_ACCESS_KEY_SECRET` | 阿里云 RAM 用户 AccessKey Secret |
 
-## 阿里云 DNS API 权限配置
+> AccessKey 同时用于 ACR 镜像推送/拉取和 DNS 证书验证，无需额外凭证。
 
-SSL 证书通过阿里云 DNS API 进行 DNS-01 挑战验证，需要以下配置：
+## 阿里云配置
 
-### 创建 RAM 用户
+### 容器镜像服务（ACR）
 
-1. 登录 [阿里云 RAM 控制台](https://ram.console.aliyun.com/)
-2. 用户 → 创建用户 → 勾选 **OpenAPI 调用访问**
-3. 保存生成的 **AccessKey ID** 和 **AccessKey Secret**
+1. 登录 [容器镜像服务控制台](https://cr.console.aliyun.com/)
+2. 选择**个人实例**（免费）
+3. 创建**命名空间**（如 `huobao`），填入 `vars.CONFIG` 的 `acr_namespace` 字段
+4. 仓库 `huobao-drama` 会在首次推送时自动创建
 
-### 授权
+### RAM 用户权限
 
-为该 RAM 用户添加权限策略：
+确保 RAM 用户拥有以下权限策略：
 
-- **AliyunDNSFullAccess**（云解析 DNS 完全访问权限）
+| 权限策略 | 用途 |
+|---------|------|
+| `AliyunContainerRegistryFullAccess` | 镜像推送与拉取 |
+| `AliyunDNSFullAccess` | SSL 证书 DNS 验证 |
 
 或使用最小权限自定义策略：
 
@@ -70,6 +79,17 @@ SSL 证书通过阿里云 DNS API 进行 DNS-01 挑战验证，需要以下配�
 {
   "Version": "1",
   "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "cr:GetAuthorizationToken",
+        "cr:PushRepository",
+        "cr:PullRepository",
+        "cr:CreateRepository",
+        "cr:GetRepository"
+      ],
+      "Resource": "*"
+    },
     {
       "Effect": "Allow",
       "Action": [
@@ -125,10 +145,10 @@ git push origin release
 
 ## 流水线流程
 
-1. 构建 Docker 镜像（多阶段：前端 generate + 后端运行时 + FFmpeg）
-2. 推送镜像到 GitHub Container Registry (ghcr.io)
+1. 构建 Docker 镜像（多阶段：前端 generate + 后端 tsc 编译 + FFmpeg 运行时）
+2. 推送镜像到阿里云 ACR（国内拉取速度快）
 3. 首次部署时通过 acme.sh + 阿里云 DNS API 申请 SSL 证书
-4. SSH 到服务器拉取镜像并启动服务
+4. SSH 到服务器从 ACR 拉取镜像并启动服务
 
 ## SSL 证书管理
 
@@ -160,7 +180,7 @@ git push origin release
 
 ```bash
 cd /opt/huobao-drama  # 你的 deploy_path
-docker compose -f docker-compose.prod.yml restart app
+sudo docker compose -f docker-compose.prod.yml restart app
 ```
 
 ## 常用运维命令
@@ -169,21 +189,21 @@ docker compose -f docker-compose.prod.yml restart app
 cd /opt/huobao-drama  # 你的 deploy_path
 
 # 查看服务状态
-docker compose -f docker-compose.prod.yml ps
+sudo docker compose -f docker-compose.prod.yml ps
 
 # 查看应用日志
-docker compose -f docker-compose.prod.yml logs -f app
+sudo docker compose -f docker-compose.prod.yml logs -f app
 
 # 查看 Nginx 日志
-docker compose -f docker-compose.prod.yml logs -f nginx
+sudo docker compose -f docker-compose.prod.yml logs -f nginx
 
 # 重启所有服务
-docker compose -f docker-compose.prod.yml restart
+sudo docker compose -f docker-compose.prod.yml restart
 
 # 停止所有服务
-docker compose -f docker-compose.prod.yml down
+sudo docker compose -f docker-compose.prod.yml down
 
 # 手动拉取最新镜像并更新
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+sudo docker compose -f docker-compose.prod.yml pull
+sudo docker compose -f docker-compose.prod.yml up -d
 ```
