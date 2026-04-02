@@ -20,13 +20,13 @@ jobs:
           echo "user=$(echo '${{ vars.CONFIG }}' | jq -r '.user')" >> "$GITHUB_OUTPUT"
           echo "domain=$(echo '${{ vars.CONFIG }}' | jq -r '.domain')" >> "$GITHUB_OUTPUT"
           echo "deploy_path=$(echo '${{ vars.CONFIG }}' | jq -r '.deploy_path')" >> "$GITHUB_OUTPUT"
-          echo "acr_region=$(echo '${{ vars.CONFIG }}' | jq -r '.acr_region')" >> "$GITHUB_OUTPUT"
+          echo "acr_registry=$(echo '${{ vars.CONFIG }}' | jq -r '.acr_registry')" >> "$GITHUB_OUTPUT"
           echo "acr_namespace=$(echo '${{ vars.CONFIG }}' | jq -r '.acr_namespace')" >> "$GITHUB_OUTPUT"
 
       - name: Set image name
         id: image
         run: |
-          REGISTRY="registry.${{ steps.config.outputs.acr_region }}.aliyuncs.com"
+          REGISTRY="${{ steps.config.outputs.acr_registry }}"
           IMAGE="${REGISTRY}/${{ steps.config.outputs.acr_namespace }}/huobao-drama"
           echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
           echo "name=${IMAGE}" >> "$GITHUB_OUTPUT"

@@ -29,7 +29,7 @@
   "user": "ubuntu",
   "domain": "drama.example.com",
   "deploy_path": "/opt/huobao-drama",
-  "acr_region": "cn-hangzhou",
+  "acr_registry": "crpi-xxxxx.cn-hangzhou.personal.cr.aliyuncs.com",
   "acr_namespace": "your-namespace"
 }
 ```
@@ -40,7 +40,7 @@
 | `user` | SSH 登录用户名 |
 | `domain` | 绑定的域名 |
 | `deploy_path` | 服务器上的部署目录 |
-| `acr_region` | 阿里云 ACR 地域，如 `cn-hangzhou`、`cn-shanghai`、`cn-beijing` |
+| `acr_registry` | ACR 个人实例域名（在 ACR 控制台 → 实例列表中查看） |
 | `acr_namespace` | ACR 命名空间名称 |
 
 ### 2. Repository Secrets
