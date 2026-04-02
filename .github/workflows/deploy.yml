@@ -1,0 +1,119 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [release]
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse server config
+        id: config
+        run: |
+          echo "host=$(echo '${{ vars.CONFIG }}' | jq -r '.host')" >> "$GITHUB_OUTPUT"
+          echo "user=$(echo '${{ vars.CONFIG }}' | jq -r '.user')" >> "$GITHUB_OUTPUT"
+          echo "domain=$(echo '${{ vars.CONFIG }}' | jq -r '.domain')" >> "$GITHUB_OUTPUT"
+          echo "deploy_path=$(echo '${{ vars.CONFIG }}' | jq -r '.deploy_path')" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate nginx config
+        run: |
+          sed 's/__DOMAIN__/${{ steps.config.outputs.domain }}/g' \
+            deploy/nginx.conf > deploy/nginx.prod.conf
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ steps.config.outputs.host }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Issue SSL certificate
+        env:
+          SSH_HOST: ${{ steps.config.outputs.host }}
+          SSH_USER: ${{ steps.config.outputs.user }}
+          DEPLOY_PATH: ${{ steps.config.outputs.deploy_path }}
+          DOMAIN: ${{ steps.config.outputs.domain }}
+          ALI_KEY: ${{ secrets.ALI_ACCESS_KEY_ID }}
+          ALI_SECRET: ${{ secrets.ALI_ACCESS_KEY_SECRET }}
+        run: |
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
+          SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+
+          $SSH_CMD "mkdir -p ${DEPLOY_PATH}/ssl"
+
+          # Install acme.sh if not present
+          $SSH_CMD "test -f ~/.acme.sh/acme.sh || (curl -fsSL https://get.acme.sh | sh -s email=acme@${DOMAIN})"
+
+          # Issue cert if not present
+          $SSH_CMD "
+            if [ ! -f ${DEPLOY_PATH}/ssl/fullchain.pem ]; then
+              export Ali_Key='${ALI_KEY}'
+              export Ali_Secret='${ALI_SECRET}'
+              ~/.acme.sh/acme.sh --issue -d ${DOMAIN} --dns dns_ali --server letsencrypt
+              ~/.acme.sh/acme.sh --install-cert -d ${DOMAIN} \
+                --key-file ${DEPLOY_PATH}/ssl/privkey.pem \
+                --fullchain-file ${DEPLOY_PATH}/ssl/fullchain.pem \
+                --reloadcmd 'cd ${DEPLOY_PATH} && docker compose -f docker-compose.prod.yml restart nginx'
+            fi
+          "
+
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ steps.config.outputs.host }}
+          SSH_USER: ${{ steps.config.outputs.user }}
+          DEPLOY_PATH: ${{ steps.config.outputs.deploy_path }}
+        run: |
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST}"
+          SCP_CMD="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
+
+          # Create deploy directory and subdirectories
+          $SSH_CMD "mkdir -p ${DEPLOY_PATH}/deploy ${DEPLOY_PATH}/data/static ${DEPLOY_PATH}/configs"
+
+          # Copy config.example.yaml if config.yaml doesn't exist yet
+          HAS_CONFIG=$($SSH_CMD "test -f ${DEPLOY_PATH}/configs/config.yaml && echo yes || echo no")
+          if [ "$HAS_CONFIG" = "no" ]; then
+            $SCP_CMD configs/config.example.yaml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/configs/config.yaml
+          fi
+
+          # Copy docker-compose and nginx config
+          $SCP_CMD docker-compose.prod.yml ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/
+          $SCP_CMD deploy/nginx.prod.conf ${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/deploy/nginx.conf
+
+          # Pull image and restart services
+          $SSH_CMD "cd ${DEPLOY_PATH} && \
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin && \
+            docker compose -f docker-compose.prod.yml pull && \
+            docker compose -f docker-compose.prod.yml up -d && \
+            docker image prune -f"
