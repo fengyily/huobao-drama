@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
+import { getUser } from '../middleware/auth.js'
 import { success, notFound, created, badRequest, now } from '../utils/response.js'
 import { toSnakeCase } from '../utils/transform.js'
 import { joinProviderUrl } from '../services/adapters/url.js'
@@ -126,6 +127,7 @@ function buildProbe(serviceType: string, provider: string, baseUrl: string, mode
 app.get('/', async (c) => {
   const serviceType = c.req.query('service_type')
   let rows = await db.select().from(schema.aiServiceConfigs)
+    .where(eq(schema.aiServiceConfigs.userId, getUser(c).id))
   if (serviceType) rows = rows.filter(r => r.serviceType === serviceType)
 
   const parsed = rows.map(r => ({
@@ -146,6 +148,7 @@ app.post('/', async (c) => {
   }
 
   const [row] = await db.insert(schema.aiServiceConfigs).values({
+    userId: getUser(c).id,
     serviceType: body.service_type,
     provider: body.provider,
     name: body.name || `${body.provider}-${body.service_type}`,
@@ -173,7 +176,10 @@ app.post('/huobao-preset', async (c) => {
   const ts = now()
 
   for (const preset of HUOBAO_PRESET_SERVICES) {
-    const [existing] = (await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.serviceType, preset.serviceType)))
+    const [existing] = (await db.select().from(schema.aiServiceConfigs).where(and(
+      eq(schema.aiServiceConfigs.serviceType, preset.serviceType),
+      eq(schema.aiServiceConfigs.userId, getUser(c).id),
+    )))
       .filter(row => row.provider === preset.provider)
 
     const values = {
@@ -189,17 +195,24 @@ app.post('/huobao-preset', async (c) => {
     }
 
     if (existing) {
-      await db.update(schema.aiServiceConfigs).set(values).where(eq(schema.aiServiceConfigs.id, existing.id))
+      await db.update(schema.aiServiceConfigs).set(values).where(and(
+        eq(schema.aiServiceConfigs.id, existing.id),
+        eq(schema.aiServiceConfigs.userId, getUser(c).id),
+      ))
     } else {
       await db.insert(schema.aiServiceConfigs).values({
         ...values,
+        userId: getUser(c).id,
         createdAt: ts,
       })
     }
   }
 
   for (const agent of HUOBAO_AGENT_DEFAULTS) {
-    const [existing] = await db.select().from(schema.agentConfigs).where(eq(schema.agentConfigs.agentType, agent.agentType))
+    const [existing] = await db.select().from(schema.agentConfigs).where(and(
+      eq(schema.agentConfigs.agentType, agent.agentType),
+      eq(schema.agentConfigs.userId, getUser(c).id),
+    ))
     const values = {
       name: agent.name,
       model: HUOBAO_AGENT_MODEL,
@@ -208,9 +221,13 @@ app.post('/huobao-preset', async (c) => {
     }
 
     if (existing) {
-      await db.update(schema.agentConfigs).set(values).where(eq(schema.agentConfigs.id, existing.id))
+      await db.update(schema.agentConfigs).set(values).where(and(
+        eq(schema.agentConfigs.id, existing.id),
+        eq(schema.agentConfigs.userId, getUser(c).id),
+      ))
     } else {
       await db.insert(schema.agentConfigs).values({
+        userId: getUser(c).id,
         agentType: agent.agentType,
         description: '',
         model: HUOBAO_AGENT_MODEL,
@@ -226,11 +243,13 @@ app.post('/huobao-preset', async (c) => {
     }
   }
 
-  const configs = (await db.select().from(schema.aiServiceConfigs)).map(row => ({
+  const configs = (await db.select().from(schema.aiServiceConfigs)
+    .where(eq(schema.aiServiceConfigs.userId, getUser(c).id))).map(row => ({
     ...toSnakeCase(row),
     model: row.model ? JSON.parse(row.model) : [],
   }))
-  const agents = (await db.select().from(schema.agentConfigs)).map(row => toSnakeCase(row))
+  const agents = (await db.select().from(schema.agentConfigs)
+    .where(eq(schema.agentConfigs.userId, getUser(c).id))).map(row => toSnakeCase(row))
 
   logTaskSuccess('AIConfig', 'huobao-preset-applied', {
     serviceCount: HUOBAO_PRESET_SERVICES.length,
@@ -316,7 +335,10 @@ app.post('/test', async (c) => {
 // GET /ai-configs/:id
 app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const [row] = await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id))
+  const [row] = await db.select().from(schema.aiServiceConfigs).where(and(
+    eq(schema.aiServiceConfigs.id, id),
+    eq(schema.aiServiceConfigs.userId, getUser(c).id),
+  ))
   if (!row) return notFound(c)
   return success(c, {
     ...toSnakeCase(row),
@@ -338,14 +360,20 @@ app.put('/:id', async (c) => {
   if ('priority' in body) updates.priority = body.priority
   if ('is_active' in body) updates.isActive = body.is_active
 
-  await db.update(schema.aiServiceConfigs).set(updates).where(eq(schema.aiServiceConfigs.id, id))
+  await db.update(schema.aiServiceConfigs).set(updates).where(and(
+    eq(schema.aiServiceConfigs.id, id),
+    eq(schema.aiServiceConfigs.userId, getUser(c).id),
+  ))
   return success(c)
 })
 
 // DELETE /ai-configs/:id
 app.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  await db.delete(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, id))
+  await db.delete(schema.aiServiceConfigs).where(and(
+    eq(schema.aiServiceConfigs.id, id),
+    eq(schema.aiServiceConfigs.userId, getUser(c).id),
+  ))
   return success(c)
 })
 

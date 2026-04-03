@@ -4,8 +4,22 @@
  */
 import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core'
 
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull().unique(),
+  username: text('username').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  avatar: text('avatar'),
+  role: text('role').notNull().default('user'),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  lastLoginAt: text('last_login_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const dramas = sqliteTable('dramas', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id'),
   title: text('title').notNull(),
   description: text('description'),
   genre: text('genre'),
@@ -138,6 +152,7 @@ export const storyboardCharacters = sqliteTable('storyboard_characters', {
 
 export const aiServiceConfigs = sqliteTable('ai_service_configs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id'),
   serviceType: text('service_type').notNull(),
   provider: text('provider'),
   name: text('name').notNull(),
@@ -181,6 +196,7 @@ export const aiVoices = sqliteTable('ai_voices', {
 
 export const agentConfigs = sqliteTable('agent_configs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id'),
   agentType: text('agent_type').notNull(),
   name: text('name').notNull(),
   description: text('description'),

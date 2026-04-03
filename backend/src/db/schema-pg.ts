@@ -4,8 +4,22 @@
  */
 import { pgTable, text, integer, serial, real, boolean, primaryKey } from 'drizzle-orm/pg-core'
 
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  username: text('username').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  avatar: text('avatar'),
+  role: text('role').notNull().default('user'),
+  isActive: boolean('is_active').default(true),
+  lastLoginAt: text('last_login_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const dramas = pgTable('dramas', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id'),
   title: text('title').notNull(),
   description: text('description'),
   genre: text('genre'),
@@ -136,6 +150,7 @@ export const storyboardCharacters = pgTable('storyboard_characters', {
 
 export const aiServiceConfigs = pgTable('ai_service_configs', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id'),
   serviceType: text('service_type').notNull(),
   provider: text('provider'),
   name: text('name').notNull(),
@@ -178,6 +193,7 @@ export const aiVoices = pgTable('ai_voices', {
 
 export const agentConfigs = pgTable('agent_configs', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id'),
   agentType: text('agent_type').notNull(),
   name: text('name').notNull(),
   description: text('description'),

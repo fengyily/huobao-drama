@@ -22,7 +22,9 @@ import grid from './routes/grid.js'
 import skills from './routes/skills.js'
 import webhooks from './routes/webhooks.js'
 import aiVoices from './routes/aiVoices.js'
+import auth from './routes/auth.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
+import { authMiddleware } from './middleware/auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
@@ -42,6 +44,10 @@ app.get('/api/v1/health', (c) => c.json({ status: 'ok', timestamp: new Date().to
 
 // API routes
 const api = new Hono()
+api.route('/auth', auth)
+
+// All routes below require authentication
+api.use('*', authMiddleware)
 api.route('/dramas', dramas)
 api.route('/episodes', episodes)
 api.route('/storyboards', storyboards)

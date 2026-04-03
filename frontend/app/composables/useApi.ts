@@ -1,7 +1,14 @@
 const BASE = '/api/v1'
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = localStorage.getItem('huobao_token')
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
+
 async function req<T = any>(method: string, path: string, body?: any): Promise<T> {
-  const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } }
+  const opts: RequestInit = { method, headers: getAuthHeaders() }
   if (body) opts.body = JSON.stringify(body)
 
   const start = performance.now()
@@ -9,6 +16,11 @@ async function req<T = any>(method: string, path: string, body?: any): Promise<T
 
   try {
     const resp = await fetch(`${BASE}${path}`, opts)
+    if (resp.status === 401 && !path.startsWith('/auth/')) {
+      localStorage.removeItem('huobao_token')
+      window.location.href = '/login'
+      throw new Error('未登录')
+    }
     const json = await resp.json()
     const ms = Math.round(performance.now() - start)
 
@@ -126,4 +138,12 @@ export const skillsAPI = {
 export const voicesAPI = {
   list: (provider?: string) => api.get(`/ai-voices${provider ? `?provider=${provider}` : ''}`),
   sync: () => api.post('/ai-voices/sync', {}),
+}
+
+export const authAPI = {
+  register: (d: { email: string; username: string; password: string }) => req('POST', '/auth/register', d),
+  login: (d: { email: string; password: string }) => req('POST', '/auth/login', d),
+  me: () => req('GET', '/auth/me'),
+  updateProfile: (d: any) => req('PUT', '/auth/profile', d),
+  changePassword: (d: { old_password: string; new_password: string }) => req('PUT', '/auth/password', d),
 }
