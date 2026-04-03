@@ -33,10 +33,15 @@
       </nav>
 
       <div class="header-right">
-        <div class="film-strip">
-          <span class="film-frame"></span>
-          <span class="film-frame"></span>
-          <span class="film-frame"></span>
+        <div v-if="user" class="user-menu">
+          <span class="user-name">{{ user.username }}</span>
+          <button class="btn-logout" @click="logout" title="退出登录">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
         </div>
       </div>
     </header>
@@ -49,9 +54,15 @@
 
 <script setup>
 import brandLogo from '~/assets/huobao-logo.png'
+import { useAuth } from '~/composables/useAuth'
 
 const route = useRoute()
 const showBrandImage = ref(true)
+const { user, logout, fetchUser } = useAuth()
+
+onMounted(() => {
+  if (!user.value) fetchUser()
+})
 </script>
 
 <style scoped>
@@ -136,22 +147,24 @@ const showBrandImage = ref(true)
 
 .header-right { display: flex; align-items: center; margin-left: auto; }
 
-/* Film strip decoration */
-.film-strip {
-  display: flex; align-items: center; gap: 3px;
-  padding: 6px 10px;
+.user-menu {
+  display: flex; align-items: center; gap: 10px;
+  padding: 5px 10px;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
-.film-frame {
-  width: 8px; height: 10px;
-  background: var(--bg-3);
-  border-radius: 1.5px;
-  transition: background 0.2s;
+.user-name {
+  font-size: 13px; font-weight: 500;
+  color: var(--text-1);
 }
-.film-frame:nth-child(2) { background: var(--accent); opacity: 0.6; }
-.film-frame:nth-child(3) { opacity: 0.3; }
+.btn-logout {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-3); padding: 4px;
+  border-radius: 4px; display: flex;
+  transition: all 0.15s;
+}
+.btn-logout:hover { color: var(--error); background: var(--error-bg); }
 
 /* Content */
 .content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }

@@ -31,8 +31,22 @@ if (DB_TYPE === 'postgres') {
 
 async function initPostgresTables(pool: any) {
   await pool.query(`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    avatar TEXT,
+    role TEXT NOT NULL DEFAULT 'user',
+    is_active BOOLEAN DEFAULT TRUE,
+    last_login_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS dramas (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER,
     title TEXT NOT NULL,
     description TEXT,
     genre TEXT,
@@ -174,6 +188,7 @@ async function initPostgresTables(pool: any) {
 
   CREATE TABLE IF NOT EXISTS ai_service_configs (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER,
     service_type TEXT NOT NULL,
     provider TEXT,
     name TEXT NOT NULL,
@@ -216,6 +231,7 @@ async function initPostgresTables(pool: any) {
 
   CREATE TABLE IF NOT EXISTS agent_configs (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER,
     agent_type TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
@@ -359,12 +375,32 @@ async function initPostgresTables(pool: any) {
     deleted_at TEXT
   );
   `)
+
+  await pool.query(`
+    ALTER TABLE dramas ADD COLUMN IF NOT EXISTS user_id INTEGER;
+    ALTER TABLE ai_service_configs ADD COLUMN IF NOT EXISTS user_id INTEGER;
+    ALTER TABLE agent_configs ADD COLUMN IF NOT EXISTS user_id INTEGER;
+  `)
 }
 
 function initSqliteTables(sqlite: any) {
   sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    avatar TEXT,
+    role TEXT NOT NULL DEFAULT 'user',
+    is_active INTEGER DEFAULT 1,
+    last_login_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS dramas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     title TEXT NOT NULL,
     description TEXT,
     genre TEXT,
@@ -506,6 +542,7 @@ function initSqliteTables(sqlite: any) {
 
   CREATE TABLE IF NOT EXISTS ai_service_configs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     service_type TEXT NOT NULL,
     provider TEXT,
     name TEXT NOT NULL,
@@ -548,6 +585,7 @@ function initSqliteTables(sqlite: any) {
 
   CREATE TABLE IF NOT EXISTS agent_configs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
     agent_type TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
@@ -706,6 +744,9 @@ function initSqliteTables(sqlite: any) {
   ensureColumn('episodes', 'image_config_id', 'INTEGER')
   ensureColumn('episodes', 'video_config_id', 'INTEGER')
   ensureColumn('episodes', 'audio_config_id', 'INTEGER')
+  ensureColumn('dramas', 'user_id', 'INTEGER')
+  ensureColumn('ai_service_configs', 'user_id', 'INTEGER')
+  ensureColumn('agent_configs', 'user_id', 'INTEGER')
 }
 
 export { db, schema }

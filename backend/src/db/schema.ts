@@ -15,6 +15,7 @@ const mod = DB_TYPE === 'postgres'
 
 type S = typeof SqliteSchema
 
+export const users = mod.users as unknown as S['users']
 export const dramas = mod.dramas as unknown as S['dramas']
 export const episodes = mod.episodes as unknown as S['episodes']
 export const characters = mod.characters as unknown as S['characters']
